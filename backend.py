@@ -1,151 +1,135 @@
-# CPU Scheduling Algorithms with Gantt Chart
-# FCFS, SJF (NP), SJF (P), Priority (NP), Priority (P), Round Robin
-
 def print_gantt_chart(order, times):
     print("\nGantt Chart:")
-    print("-" * (len(order) * 6))
+    print(" ", end="")
     for p in order:
-        print(f"| {p:^3} ", end="")
+        print(f"|  P{p}  ", end="")
     print("|")
-    print("-" * (len(order) * 6))
+
+    print("0", end="")
     for t in times:
-        print(f"{t:<6}", end="")
+        print(f"     {t}", end="")
     print("\n")
 
+
 def fcfs(processes):
-    print("\n--- FCFS Scheduling ---")
-    processes.sort(key=lambda x: x[1])
-    t = 0
-    order, times = [], [0]
-    for p in processes:
-        t = max(t, p[1]) + p[2]
-        order.append(p[0])
-        times.append(t)
-    print_gantt_chart(order, times)
+    processes.sort(key=lambda x: x[1])  # sort by arrival time
+    start, finish, order = [], [], []
+    time = 0
+    for pid, at, bt in processes:
+        if time < at:
+            time = at
+        start.append(time)
+        time += bt
+        finish.append(time)
+        order.append(pid)
+    print_gantt_chart(order, finish)
+    print(f"Average Waiting Time: {sum(f - a - b for (_, a, b), f in zip(processes, finish)) / len(processes):.2f}")
 
-def sjf_non_preemptive(processes):
-    print("\n--- SJF (Non-Preemptive) ---")
-    processes.sort(key=lambda x: x[1])
+
+def sjf(processes):
+    processes.sort(key=lambda x: x[1])  # by arrival time
     n = len(processes)
-    t = processes[0][1]
-    completed = []
-    order, times = [], [t]
+    time, completed, order, finish = 0, [], [], []
+
     while len(completed) < n:
-        ready = [p for p in processes if p[1] <= t and p not in completed]
-        if ready:
-            p = min(ready, key=lambda x: x[2])
-            t += p[2]
-            completed.append(p)
-            order.append(p[0])
-            times.append(t)
-        else:
-            t += 1
-    print_gantt_chart(order, times)
+        available = [p for p in processes if p[1] <= time and p not in completed]
+        if not available:
+            time += 1
+            continue
+        p = min(available, key=lambda x: x[2])  # choose shortest burst
+        time += p[2]
+        completed.append(p)
+        order.append(p[0])
+        finish.append(time)
 
-def sjf_preemptive(processes):
-    print("\n--- SJF (Preemptive) ---")
+    print_gantt_chart(order, finish)
+
+
+def priority_scheduling(processes):
+    processes.sort(key=lambda x: x[1])
     n = len(processes)
-    remaining = {p[0]: p[2] for p in processes}
-    t = 0
-    order, times = [], [0]
-    completed = 0
-    while completed < n:
-        ready = [p for p in processes if p[1] <= t and remaining[p[0]] > 0]
-        if ready:
-            p = min(ready, key=lambda x: remaining[x[0]])
-            remaining[p[0]] -= 1
-            if not order or order[-1] != p[0]:
-                order.append(p[0])
-                times.append(t)
-            t += 1
-            if remaining[p[0]] == 0:
-                completed += 1
-        else:
-            t += 1
-    times.append(t)
-    print_gantt_chart(order, times)
+    time, completed, order, finish = 0, [], [], []
 
-def priority_non_preemptive(processes):
-    print("\n--- Priority (Non-Preemptive) ---")
-    processes.sort(key=lambda x: x[1])
-    t = 0
-    completed = []
-    order, times = [], [0]
-    while len(completed) < len(processes):
-        ready = [p for p in processes if p[1] <= t and p not in completed]
-        if ready:
-            p = min(ready, key=lambda x: x[3])
-            t += p[2]
-            completed.append(p)
-            order.append(p[0])
-            times.append(t)
-        else:
-            t += 1
-    print_gantt_chart(order, times)
+    while len(completed) < n:
+        available = [p for p in processes if p[1] <= time and p not in completed]
+        if not available:
+            time += 1
+            continue
+        p = min(available, key=lambda x: x[3])  # smallest priority
+        time += p[2]
+        completed.append(p)
+        order.append(p[0])
+        finish.append(time)
 
-def priority_preemptive(processes):
-    print("\n--- Priority (Preemptive) ---")
-    remaining = {p[0]: p[2] for p in processes}
-    t = 0
-    order, times = [], [0]
-    completed = 0
-    while completed < len(processes):
-        ready = [p for p in processes if p[1] <= t and remaining[p[0]] > 0]
-        if ready:
-            p = min(ready, key=lambda x: x[3])
-            remaining[p[0]] -= 1
-            if not order or order[-1] != p[0]:
-                order.append(p[0])
-                times.append(t)
-            t += 1
-            if remaining[p[0]] == 0:
-                completed += 1
-        else:
-            t += 1
-    times.append(t)
-    print_gantt_chart(order, times)
+    print_gantt_chart(order, finish)
 
-def round_robin(processes, quantum=2):
-    print("\n--- Round Robin ---")
+
+def round_robin(processes, quantum):
+    n = len(processes)
     queue = []
-    t = 0
-    order, times = [], [0]
-    remaining = {p[0]: p[2] for p in processes}
-    processes.sort(key=lambda x: x[1])
-    i = 0
-    while i < len(processes) or queue:
-        while i < len(processes) and processes[i][1] <= t:
-            queue.append(processes[i])
-            i += 1
-        if queue:
-            p = queue.pop(0)
-            exec_time = min(quantum, remaining[p[0]])
-            if not order or order[-1] != p[0]:
-                order.append(p[0])
-                times.append(t)
-            t += exec_time
-            remaining[p[0]] -= exec_time
-            if remaining[p[0]] > 0:
-                while i < len(processes) and processes[i][1] <= t:
-                    queue.append(processes[i])
-                    i += 1
+    time = 0
+    rem_bt = {p[0]: p[2] for p in processes}
+    order, finish = [], []
+
+    while processes or queue:
+        # Add available processes to queue
+        for p in processes[:]:
+            if p[1] <= time:
                 queue.append(p)
-        else:
-            t += 1
-    times.append(t)
-    print_gantt_chart(order, times)
+                processes.remove(p)
 
-# Example Input Format: (ProcessID, ArrivalTime, BurstTime, Priority)
-processes = [
-    ('P1', 0, 5, 2),
-    ('P2', 1, 3, 1),
-    ('P3', 2, 8, 4),
-    ('P4', 3, 6, 3)
-]
+        if not queue:
+            time += 1
+            continue
 
-fcfs(processes[:])
-sjf_non_preemptive(processes[:])
-sjf_preemptive(processes[:])
-priority_non_preemptive(processes[:])
-priority_preemptive(processes[:])
-round_robin(processes[:], quantum=2)
+        pid, at, bt = queue.pop(0)
+        exec_time = min(quantum, rem_bt[pid])
+        rem_bt[pid] -= exec_time
+        time += exec_time
+        order.append(pid)
+        finish.append(time)
+
+        if rem_bt[pid] > 0:
+            for p in processes[:]:
+                if p[1] <= time and p not in queue:
+                    queue.append(p)
+                    processes.remove(p)
+            queue.append((pid, at, bt))
+
+    print_gantt_chart(order, finish)
+
+
+def main():
+    print("CPU Scheduling Algorithms:")
+    print("1. FCFS\n2. SJF\n3. Priority\n4. Round Robin")
+    choice = int(input("Enter your choice: "))
+
+    n = int(input("Enter number of processes: "))
+    processes = []
+
+    if choice == 3:
+        print("Enter PID, Arrival Time, Burst Time, Priority:")
+        for _ in range(n):
+            pid, at, bt, pr = map(int, input().split())
+            processes.append((pid, at, bt, pr))
+    else:
+        print("Enter PID, Arrival Time, Burst Time:")
+        for _ in range(n):
+            pid, at, bt = map(int, input().split())
+            processes.append((pid, at, bt))
+
+    if choice == 1:
+        fcfs(processes)
+    elif choice == 2:
+        sjf(processes)
+    elif choice == 3:
+        priority_scheduling(processes)
+    elif choice == 4:
+        quantum = int(input("Enter time quantum: "))
+        round_robin(processes, quantum)
+    else:
+        print("Invalid choice")
+
+
+if __name__ == "__main__":
+    main()
